@@ -1,6 +1,3 @@
-from dotenv import load_dotenv
-load_dotenv()
-
 import os
 import asyncio
 import signal
@@ -12,14 +9,22 @@ from aiogram.enums import ParseMode
 from aiogram.types import ErrorEvent
 
 # ========================
-# LOAD ENV
+# CONFIG (langsung di kode)
 # ========================
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
+BOT_TOKEN = "ISI_TOKEN_BOT_KAMU"
+CHANNEL_ID = -1002538940104
 
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN tidak ditemukan di .env")
+ADMIN_IDS = [1538087933, 7608777733]
+
+REQUIRED_CHANNELS = [
+    "@sortfess",
+    "@fiIIyourheart"
+]
+
+AUTO_DELETE_HOURS = 24
+COOLDOWN_SECONDS = 120
+
 
 # ========================
 # IMPORT ROUTERS
