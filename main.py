@@ -7,13 +7,14 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import ErrorEvent
+from config import CHANNEL_ID
+print("CHANNEL_ID loaded:", CHANNEL_ID)
 
 # ========================
 # CONFIG (langsung di kode)
 # ========================
 
 BOT_TOKEN = "7685483291:AAHUPE6n4gsNSkdGMgdqhaXmXhLn7xUrG0s"
-CHANNEL_ID = -1002538940104
 
 ADMIN_IDS = [1538087933, 7608777733]
 
