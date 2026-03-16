@@ -1,50 +1,92 @@
+import logging
 from aiogram import Bot
-from aiogram.types import ChatMember
+from aiogram.enums import ChatMemberStatus
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 from config import REQUIRED_CHANNELS
-import logging
 
-# Status global untuk membuka/menutup fitur menfess
+
+# ========================
+# STATUS BASE (OPEN / CLOSE)
+# ========================
+
 _POST_STATUS = {"is_open": True}
+
 
 def set_post_status(status: bool) -> None:
     """
-    Atur status buka/tutup base.
-    Args:
-        status (bool): True untuk buka, False untuk tutup.
+    Mengubah status base (buka / tutup menfess)
     """
     _POST_STATUS["is_open"] = status
-    logging.info(f"[Post Status] Diubah menjadi {'Buka' if status else 'Tutup'}")
+
+    if status:
+        logging.info("[Post Status] Base dibuka")
+    else:
+        logging.info("[Post Status] Base ditutup")
+
 
 def get_post_status() -> bool:
     """
-    Ambil status saat ini dari base.
-    Returns:
-        bool: True jika base dibuka, False jika ditutup.
+    Mengambil status base saat ini
     """
     return _POST_STATUS["is_open"]
 
+
+# ========================
+# CHECK SUBSCRIPTION
+# ========================
+
 async def check_subscription(user_id: int, bot: Bot) -> bool:
     """
-    Periksa apakah user sudah bergabung ke semua channel wajib.
+    Mengecek apakah user sudah join semua channel yang diwajibkan.
 
     Args:
-        user_id (int): ID Telegram user
-        bot (Bot): Instance bot
+        user_id (int): ID user Telegram
+        bot (Bot): instance bot
 
     Returns:
-        bool: True jika user tergabung di semua channel, False jika belum atau terjadi error.
+        bool: True jika user join semua channel
     """
-    for channel_id in REQUIRED_CHANNELS:
+
+    for channel in REQUIRED_CHANNELS:
         try:
-            member: ChatMember = await bot.get_chat_member(chat_id=channel_id, user_id=user_id)
-            if member.status not in {"member", "administrator", "creator"}:
-                logging.warning(f"[Subscription] User {user_id} belum join channel {channel_id}")
+            member = await bot.get_chat_member(
+                chat_id=channel,
+                user_id=user_id
+            )
+
+            status = member.status
+
+            # Debug log
+            logging.info(
+                f"[Subscription Check] User {user_id} di {channel} -> {status}"
+            )
+
+            if status not in (
+                ChatMemberStatus.MEMBER,
+                ChatMemberStatus.ADMINISTRATOR,
+                ChatMemberStatus.CREATOR,
+            ):
+                logging.warning(
+                    f"[Subscription] User {user_id} belum join {channel}"
+                )
                 return False
-        except (TelegramForbiddenError, TelegramBadRequest) as e:
-            logging.error(f"[Subscription] Gagal cek channel {channel_id} untuk user {user_id}: {e}")
+
+        except TelegramForbiddenError:
+            logging.error(
+                f"[Subscription] Bot tidak punya akses ke channel {channel}"
+            )
             return False
+
+        except TelegramBadRequest as e:
+            logging.error(
+                f"[Subscription] Channel salah atau tidak ditemukan: {channel} | {e}"
+            )
+            return False
+
         except Exception as e:
-            logging.exception(f"[Subscription] Error tidak diketahui saat cek user {user_id} di {channel_id}: {e}")
+            logging.exception(
+                f"[Subscription] Error saat cek user {user_id} di {channel}: {e}"
+            )
             return False
+
     return True
