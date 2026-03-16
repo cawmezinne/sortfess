@@ -113,6 +113,9 @@ async def global_error_handler(event: ErrorEvent):
 
 async def main():
     logger.info("🤖 Bot Sort Menfess sedang berjalan...")
+    
+    chat = await bot.get_chat(-1002538940104)
+    print(chat)
 
     loop = asyncio.get_event_loop()
 
