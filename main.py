@@ -1,50 +1,80 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 import os
 import asyncio
 import signal
 import logging
+
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import ErrorEvent
-from config import BOT_TOKEN, ADMIN_IDS
 
-# Import routers
+# ========================
+# LOAD ENV
+# ========================
+
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
+
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN tidak ditemukan di .env")
+
+# ========================
+# IMPORT ROUTERS
+# ========================
+
 from handlers.start import router as start_router
 from handlers.menfess import router as menfess_router
 from handlers.admin import router as admin_router
 
-# Import middleware
+# ========================
+# IMPORT MIDDLEWARE
+# ========================
+
 from middleware import RateLimitMiddleware, AdminLoggingMiddleware
 
 # ========================
 # LOGGING SETUP
 # ========================
 
-LOG_DIR = os.path.join(os.path.dirname(__file__), 'logs')
+LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
 os.makedirs(LOG_DIR, exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
+    format="%(asctime)s [%(levelname)s] %(message)s",
     handlers=[
         logging.StreamHandler(),
-        logging.FileHandler(os.path.join(LOG_DIR, 'bot.log'), encoding='utf-8'),
-    ]
+        logging.FileHandler(os.path.join(LOG_DIR, "bot.log"), encoding="utf-8"),
+    ],
 )
+
 logger = logging.getLogger(__name__)
 
 # ========================
-# INISIALISASI
+# INISIALISASI BOT
 # ========================
 
-bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+bot = Bot(
+    token=BOT_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
+
 dp = Dispatcher()
 
-# Daftarkan middleware
+# ========================
+# REGISTER MIDDLEWARE
+# ========================
+
 dp.message.middleware(RateLimitMiddleware())
 dp.message.middleware(AdminLoggingMiddleware(admin_ids=ADMIN_IDS))
 
-# Daftarkan router (urutan penting: start & admin dulu, menfess terakhir)
+# ========================
+# REGISTER ROUTERS
+# ========================
+
 dp.include_router(start_router)
 dp.include_router(admin_router)
 dp.include_router(menfess_router)
@@ -59,7 +89,7 @@ async def global_error_handler(event: ErrorEvent):
         f"Unhandled error: {event.exception}",
         exc_info=event.exception,
     )
-    # Coba kirim notifikasi ke user jika bisa
+
     try:
         update = event.update
         if update and update.message:
@@ -68,7 +98,9 @@ async def global_error_handler(event: ErrorEvent):
             )
     except Exception:
         pass
-    return True  # Error sudah di-handle
+
+    return True
+
 
 # ========================
 # MAIN
@@ -77,33 +109,26 @@ async def global_error_handler(event: ErrorEvent):
 async def main():
     logger.info("🤖 Bot Sort Menfess sedang berjalan...")
 
-    # Graceful shutdown handler
     loop = asyncio.get_event_loop()
-    shutdown_event = asyncio.Event()
 
-    def _signal_handler():
-        logger.info("⏹ Menerima sinyal shutdown...")
-        shutdown_event.set()
+    def shutdown():
+        logger.info("⏹ Shutdown signal diterima")
 
-    # Register signal handlers (hanya di Unix, di Windows pakai try/except)
     try:
         for sig in (signal.SIGINT, signal.SIGTERM):
-            loop.add_signal_handler(sig, _signal_handler)
+            loop.add_signal_handler(sig, shutdown)
     except NotImplementedError:
-        # Windows tidak support add_signal_handler, gunakan KeyboardInterrupt
         pass
 
     try:
         await dp.start_polling(bot)
     except (KeyboardInterrupt, SystemExit):
-        logger.info("⏹ Bot dihentikan oleh user.")
-    except Exception as e:
-        logger.error(f"❌ Terjadi error saat polling: {e}")
+        logger.info("⏹ Bot dihentikan")
     finally:
         logger.info("🔌 Menutup koneksi bot...")
         await bot.session.close()
         logger.info("✅ Bot berhenti dengan bersih.")
 
-# Entry point
+
 if __name__ == "__main__":
     asyncio.run(main())
