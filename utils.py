@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from aiogram import Bot
 from aiogram.enums import ChatMemberStatus
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
@@ -90,3 +91,35 @@ async def check_subscription(user_id: int, bot: Bot) -> bool:
             return False
 
     return True
+
+
+# ========================
+# LINK POSTINGAN CHANNEL
+# ========================
+
+async def build_channel_post_link(bot: Bot, chat_id: int, message_id: int) -> Optional[str]:
+    """
+    Bangun link menuju postingan yang dikirim ke channel.
+
+    - Channel public: https://t.me/<username>/<message_id>
+    - Channel private: https://t.me/c/<internal_id>/<message_id>
+      (internal_id = abs(chat_id) - 1000000000000)
+    """
+    try:
+        chat = await bot.get_chat(chat_id)
+        username = getattr(chat, "username", None)
+        if username:
+            return f"https://t.me/{username}/{message_id}"
+    except Exception as e:
+        logging.warning(f"[Post Link] Gagal ambil username chat {chat_id}: {e}")
+
+    try:
+        # Telegram private channel link format
+        abs_id = abs(int(chat_id))
+        if abs_id >= 1000000000000:
+            internal_id = abs_id - 1000000000000
+            return f"https://t.me/c/{internal_id}/{message_id}"
+    except Exception as e:
+        logging.warning(f"[Post Link] Gagal build private link untuk {chat_id}: {e}")
+
+    return None

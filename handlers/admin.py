@@ -1,4 +1,5 @@
 from aiogram import Router, types, Bot
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 from db import (
@@ -10,7 +11,7 @@ from db import (
     get_pending_menfess_by_id, remove_pending_menfess,
     get_reports, clear_reports
 )
-from utils import set_post_status
+from utils import set_post_status, build_channel_post_link
 from config import CHANNEL_ID
 import asyncio
 import logging
@@ -18,6 +19,12 @@ import html
 
 router = Router()
 admin_set = set(get_admin_ids())
+
+
+def post_link_keyboard(url: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="🔗 Lihat Postingan", url=url)]]
+    )
 
 def is_admin(user_id: int) -> bool:
     return user_id in admin_set
@@ -340,11 +347,13 @@ async def approve_cmd(message: types.Message, bot: Bot):
 
         remove_pending_menfess(menfess_id)
 
-        # Notifikasi ke pengirim
+        # Notifikasi ke pengirim + link postingan
         try:
+            url = await build_channel_post_link(bot, CHANNEL_ID, sent.message_id)
             await bot.send_message(
                 menfess["user_id"],
-                "✅ Menfess #tellem kamu sudah di-approve dan dikirim ke base!"
+                "✅ Menfess #tellem kamu sudah di-approve dan dikirim ke base!",
+                reply_markup=post_link_keyboard(url) if url else None
             )
         except Exception:
             pass

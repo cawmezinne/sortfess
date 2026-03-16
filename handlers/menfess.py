@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 
 from filters import contains_bad_word
 from config import VALID_HASHTAGS, CHANNEL_ID, AUTO_DELETE_HOURS
-from utils import check_subscription, get_post_status
+from utils import check_subscription, get_post_status, build_channel_post_link
 from handlers.start import sub_keyboard
 
 from db import (
@@ -93,6 +93,13 @@ def confirm_keyboard():
                     callback_data="confirm_cancel"
                 )
             ]
+        ]
+    )
+
+def post_link_keyboard(url: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="🔗 Lihat Postingan", url=url)]
         ]
     )
 
@@ -239,6 +246,16 @@ async def confirm_send(callback: CallbackQuery, bot: Bot):
         user_id,
         "✅ Menfess berhasil dikirim!"
     )
+
+    # Kirim link postingan (kalau bisa dibangun)
+    if sent:
+        url = await build_channel_post_link(bot, CHANNEL_ID, sent.message_id)
+        if url:
+            await bot.send_message(
+                user_id,
+                "🔗 Ini link menfess kamu di channel.",
+                reply_markup=post_link_keyboard(url)
+            )
 
     if sent and AUTO_DELETE_HOURS > 0:
         asyncio.create_task(
