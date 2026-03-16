@@ -1,0 +1,55 @@
+# Python bytecode & caches
+
+**pycache**/
+\*.py\[cod]
+\*.pyo
+\*.pyd
+\*.pyc
+\*.log
+
+# Environment
+
+.env
+.env.\*
+venv/
+.venv/
+env/
+
+# Python packaging
+
+\*.egg
+\*.egg-info/
+dist/
+build/
+pip-wheel-metadata/
+\*.whl
+
+# Lock files
+
+poetry.lock
+Pipfile.lock
+
+# Telethon / Telegram bot session
+
+\*.session
+\*.session-journal
+sessions/
+
+# Databases
+
+\*.sqlite3
+*.db
+data/*.db
+
+# IDEs & OS files
+
+.vscode/
+.DS\_Store
+Thumbs.db
+desktop.ini
+
+# Python tools
+
+.mypy\_cache/
+.pytest\_cache/
+**pypackages**/
