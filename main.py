@@ -1,6 +1,3 @@
-from dotenv import load_dotenv
-load_dotenv()
-
 import os
 import asyncio
 import signal
@@ -10,16 +7,25 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import ErrorEvent
+from config import CHANNEL_ID
+print("CHANNEL_ID loaded:", CHANNEL_ID)
 
 # ========================
-# LOAD ENV
+# CONFIG (langsung di kode)
 # ========================
 
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-ADMIN_IDS = list(map(int, os.getenv("ADMIN_IDS", "").split(","))) if os.getenv("ADMIN_IDS") else []
+BOT_TOKEN = "7685483291:AAHUPE6n4gsNSkdGMgdqhaXmXhLn7xUrG0s"
 
-if not BOT_TOKEN:
-    raise ValueError("BOT_TOKEN tidak ditemukan di .env")
+ADMIN_IDS = [1538087933, 7608777733]
+
+REQUIRED_CHANNELS = [
+    "@sortfess",
+    "@fiIIyourheart"
+]
+
+AUTO_DELETE_HOURS = 24
+COOLDOWN_SECONDS = 120
+
 
 # ========================
 # IMPORT ROUTERS
@@ -108,6 +114,9 @@ async def global_error_handler(event: ErrorEvent):
 
 async def main():
     logger.info("🤖 Bot Sort Menfess sedang berjalan...")
+    
+    chat = await bot.get_chat(-1002538940104)
+    print(chat)
 
     loop = asyncio.get_event_loop()
 
