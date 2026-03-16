@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv('BOT_TOKEN', '')
-CHANNEL_ID = int(os.getenv('CHANNEL_ID', '0'))
+CHANNEL_ID = int(os.getenv('CHANNEL_ID', '-1002538940104'))
 ADMIN_IDS = set(int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x.strip())
 REQUIRED_CHANNELS = [x.strip() for x in os.getenv('REQUIRED_CHANNELS', '').split(',') if x.strip()]
 
