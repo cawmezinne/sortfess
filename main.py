@@ -12,7 +12,7 @@ from aiogram.types import ErrorEvent
 # CONFIG (langsung di kode)
 # ========================
 
-BOT_TOKEN = "ISI_TOKEN_BOT_KAMU"
+BOT_TOKEN = "7685483291:AAHUPE6n4gsNSkdGMgdqhaXmXhLn7xUrG0s"
 CHANNEL_ID = -1002538940104
 
 ADMIN_IDS = [1538087933, 7608777733]
