@@ -24,6 +24,10 @@ class RateLimitMiddleware(BaseMiddleware):
         if not isinstance(event, Message):
             return await handler(event, data)
 
+        # Cooldown dimatikan
+        if COOLDOWN_SECONDS <= 0:
+            return await handler(event, data)
+
         user_id = event.from_user.id if event.from_user else None
         if user_id is None:
             return await handler(event, data)

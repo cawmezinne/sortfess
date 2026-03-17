@@ -12,7 +12,8 @@ REQUIRED_CHANNELS = [x.strip() for x in os.getenv('REQUIRED_CHANNELS', '').split
 AUTO_DELETE_HOURS = int(os.getenv('AUTO_DELETE_HOURS', '24'))
 
 # Cooldown per user dalam detik
-COOLDOWN_SECONDS = int(os.getenv('COOLDOWN_SECONDS', '120'))
+# 0 = nonaktif (tanpa limit)
+COOLDOWN_SECONDS = int(os.getenv('COOLDOWN_SECONDS', '0'))
 
 # Daftar hashtag yang valid untuk menfess
 VALID_HASHTAGS = {
