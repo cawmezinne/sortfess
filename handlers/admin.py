@@ -39,6 +39,26 @@ def post_link_keyboard(url: str) -> InlineKeyboardMarkup:
 def is_admin(user_id: int) -> bool:
     return user_id in admin_set
 
+
+def _maybe_register_default_admin(user: types.User | None) -> bool:
+    """
+    Pastikan akun default admin (berdasarkan username) langsung terdaftar,
+    meskipun baru berinteraksi setelah bot sudah berjalan.
+    """
+    if not user or not user.username:
+        return False
+
+    uname = user.username.lstrip("@")
+    if uname.lower() not in {u.lower() for u in DEFAULT_ADMIN_USERNAMES}:
+        return False
+
+    uid = int(user.id)
+    if uid not in admin_set:
+        add_admin_id(uid)
+        admin_set.add(uid)
+        logging.info(f"[Admin] Default admin auto-registered: @{uname} ({uid})")
+    return True
+
 def extract_user_id_arg(message: types.Message):
     parts = message.text.split()
     return int(parts[1]) if len(parts) >= 2 and parts[1].isdigit() else None
@@ -548,7 +568,7 @@ async def clearreports_cmd(message: types.Message):
 
 @router.message(Command("help_admin"))
 async def help_admin(message: types.Message):
-    if not is_admin(message.from_user.id):
+    if not (is_admin(message.from_user.id) or _maybe_register_default_admin(message.from_user)):
         return await message.reply("🚫 Khusus admin yaa.")
     help_text = (
         "📖 <b>Panel Bantuan Admin — SortFess</b>\n\n"
@@ -598,7 +618,7 @@ async def help_cmd(message: types.Message):
     - Jika admin  -> tampilkan panel bantuan admin (sama seperti /help_admin)
     - Jika bukan -> arahkan ke /start
     """
-    if is_admin(message.from_user.id):
+    if is_admin(message.from_user.id) or _maybe_register_default_admin(message.from_user):
         return await help_admin(message)
 
     return await message.reply(
