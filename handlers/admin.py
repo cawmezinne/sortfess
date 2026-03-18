@@ -9,7 +9,7 @@ from db import (
     get_all_banned_users, clear_banlist, get_ban_reason,
     get_user_post_count, get_pending_menfess_list,
     get_pending_menfess_by_id, remove_pending_menfess,
-    get_reports, clear_reports, get_posts_by_user
+    get_reports, clear_reports, get_posts_by_user, upsert_user_last_post
 )
 from utils import set_post_status, build_channel_post_link
 from config import CHANNEL_ID
@@ -492,6 +492,11 @@ async def approve_cmd(message: types.Message, bot: Bot):
         # Notifikasi ke pengirim + link postingan
         try:
             url = await build_channel_post_link(bot, CHANNEL_ID, sent.message_id)
+            if url:
+                try:
+                    upsert_user_last_post(int(menfess["user_id"]), url, sent.message_id)
+                except Exception as e:
+                    logging.warning(f"[LastPost] Gagal simpan last post user {menfess['user_id']}: {e}")
             await bot.send_message(
                 menfess["user_id"],
                 "✅ Menfess #tellem kamu sudah di-approve dan dikirim ke base!",

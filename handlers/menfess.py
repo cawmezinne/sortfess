@@ -15,7 +15,8 @@ from db import (
     is_banned,
     count_hashtags,
     log_post,
-    add_pending_menfess
+    add_pending_menfess,
+    upsert_user_last_post
 )
 
 router = Router()
@@ -266,6 +267,10 @@ async def confirm_send(callback: CallbackQuery, bot: Bot):
     if sent:
         url = await build_channel_post_link(bot, CHANNEL_ID, sent.message_id)
         if url:
+            try:
+                upsert_user_last_post(user_id, url, sent.message_id)
+            except Exception as e:
+                logging.warning(f"[LastPost] Gagal simpan last post user {user_id}: {e}")
             await bot.send_message(
                 user_id,
                 "🔗 Ini link menfess kamu di channel.",

@@ -50,6 +50,12 @@ with get_connection() as conn:
             reason TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+        CREATE TABLE IF NOT EXISTS user_last_posts (
+            user_id INTEGER PRIMARY KEY,
+            url TEXT,
+            channel_message_id INTEGER,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
     ''')
     # Migrasi: tambah kolom reason ke banned_users jika belum ada
     try:
@@ -169,6 +175,33 @@ def get_posts_by_user(user_id: int, limit: int = 10) -> List[Tuple[int, str]]:
             (user_id, limit),
         ).fetchall()
         return rows
+
+
+def upsert_user_last_post(user_id: int, url: str, channel_message_id: int) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO user_last_posts (user_id, url, channel_message_id, created_at)
+            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(user_id) DO UPDATE SET
+                url = excluded.url,
+                channel_message_id = excluded.channel_message_id,
+                created_at = CURRENT_TIMESTAMP
+            """,
+            (user_id, url, channel_message_id),
+        )
+        conn.commit()
+
+
+def get_user_last_post(user_id: int) -> Optional[Dict[str, Optional[str]]]:
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT url, channel_message_id, created_at FROM user_last_posts WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        if not row:
+            return None
+        return {"url": row[0], "channel_message_id": row[1], "created_at": row[2]}
 
 # === HASHTAGS ===
 

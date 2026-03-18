@@ -2,7 +2,8 @@ from aiogram import Router, types, Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import Command
 from aiogram import F
-from db import add_user, add_report
+import html
+from db import add_user, add_report, get_user_post_count, latest_post, get_user_last_post
 from config import REQUIRED_CHANNELS, VALID_HASHTAGS
 from utils import get_post_status
 
@@ -88,6 +89,66 @@ async def hashtags_cmd(message: types.Message):
         f"📌 <b>Daftar Hashtag SortFess</b>\n\n{hashtag_info()}\n\n"
         "Gunakan salah satu hashtag di atas saat mengirim menfess ya!",
         parse_mode="HTML"
+    )
+
+
+@router.message(Command("last"))
+async def last_cmd(message: types.Message):
+    """
+    /last
+    Ambil link menfess terakhir kamu yang berhasil terkirim.
+    """
+    user_id = message.from_user.id
+    add_user(user_id, message.from_user.username or "")
+
+    last = get_user_last_post(user_id)
+    if not last or not last.get("url"):
+        return await message.reply(
+            "ℹ️ Belum ada link menfess terakhir yang tersimpan.\n"
+            "Coba kirim menfess dulu, nanti bot akan kasih tombol link.",
+            parse_mode="HTML",
+        )
+
+    url = last["url"]
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[[InlineKeyboardButton(text="🔗 Lihat Postingan", url=url)]]
+    )
+    await message.reply(
+        "🔗 Ini link menfess terakhir kamu di channel.",
+        reply_markup=kb,
+        parse_mode="HTML",
+    )
+
+
+@router.message(Command("mystats"))
+async def mystats_cmd(message: types.Message):
+    """
+    /mystats
+    Lihat ringkasan aktivitas kamu di bot.
+    """
+    user = message.from_user
+    user_id = user.id
+    add_user(user_id, user.username or "")
+
+    count = get_user_post_count(user_id)
+    last_text = latest_post(user_id) or ""
+    preview = html.escape(last_text[:200]) + ("..." if len(last_text) > 200 else "") if last_text else "(belum ada)"
+
+    last_link = get_user_last_post(user_id)
+    kb = None
+    if last_link and last_link.get("url"):
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="🔗 Lihat Postingan Terakhir", url=last_link["url"])]]
+        )
+
+    await message.reply(
+        "📊 <b>Statistik Kamu</b>\n\n"
+        f"🆔 ID: <code>{user_id}</code>\n"
+        f"👤 Nama: {html.escape(user.full_name)}\n"
+        f"📦 Total menfess terkirim: <b>{count}</b>\n\n"
+        f"📝 <b>Preview terakhir:</b>\n{preview}",
+        reply_markup=kb,
+        parse_mode="HTML",
     )
 
 # ========================
