@@ -3,6 +3,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 from aiogram.filters import Command
 from aiogram import F
 import html
+import random
 from db import add_user, add_report, get_user_post_count, latest_post, get_user_last_post
 from config import REQUIRED_CHANNELS, VALID_HASHTAGS
 from utils import get_post_status
@@ -27,6 +28,59 @@ def info_keyboard() -> InlineKeyboardMarkup:
 # Format list hashtag
 def hashtag_info() -> str:
     return "\n".join([f"• <b>{tag}</b> → {desc}" for tag, desc in VALID_HASHTAGS.items()])
+
+def template_keyboard() -> InlineKeyboardMarkup:
+    rows = []
+    tags = list(VALID_HASHTAGS.keys())
+    for i in range(0, len(tags), 2):
+        row = []
+        for tag in tags[i:i+2]:
+            row.append(InlineKeyboardButton(text=tag, callback_data=f"tpl:{tag}"))
+        rows.append(row)
+    rows.append([InlineKeyboardButton(text="🎲 Random prompt", callback_data="tpl:prompt")])
+    return InlineKeyboardMarkup(inline_keyboard=rows)
+
+def _template_text(tag: str) -> str:
+    tag = tag.lower().strip()
+    if tag not in VALID_HASHTAGS:
+        return (
+            "⚠️ Template tidak ditemukan.\n\n"
+            "Ketik /template lagi untuk pilih hashtag."
+        )
+    desc = VALID_HASHTAGS[tag]
+    examples = {
+        "#sorta":  f"{tag} (tulis menfess kamu di sini...)\n\nContoh:\n{tag} aku suka kamu dari jauh tapi gengsi ngomong",
+        "#kinda":  f"{tag} (curhat/sambat di sini...)\n\nContoh:\n{tag} capek banget hari ini, pengen istirahat",
+        "#tellem": f"{tag} (konten sensitif/tw...)\n\nContoh:\n{tag} tw: mimpi buruk semalam dan masih kebayang",
+        "#gonna":  f"{tag} (identitas TERBUKA)\n\nContoh:\n{tag} aku (nama kamu) mau minta maaf kemarin...",
+        "#wanna":  f"{tag} (tanya biar dapet solusi)\n\nContoh:\n{tag} gimana cara move on yang bener?",
+    }
+    body = examples.get(tag, f"{tag} (tulis menfess kamu di sini...)")
+    return (
+        f"🧾 <b>Template {tag}</b>\n"
+        f"ℹ️ {html.escape(desc)}\n\n"
+        f"<code>{html.escape(body)}</code>\n\n"
+        "Salin teks di atas, lalu kirim sebagai menfess ya."
+    )
+
+def _random_prompt_text() -> str:
+    prompts = [
+        "Ceritain 1 hal kecil yang bikin kamu senyum hari ini.",
+        "Apa yang pengen kamu bilang ke seseorang tapi belum sempet?",
+        "Kalau bisa ngulang 1 momen minggu ini, momen apa?",
+        "Satu hal yang kamu syukuri akhir-akhir ini?",
+        "Apa yang lagi kamu tunggu-tunggu sekarang?",
+        "Hal paling random yang kepikiran kamu barusan?",
+        "Kalimat yang pengen kamu denger dari seseorang itu apa?",
+        "Kalau kamu bisa jujur 100%, kamu lagi ngerasa apa?",
+    ]
+    p = random.choice(prompts)
+    return (
+        "🎲 <b>Random prompt</b>\n\n"
+        f"{html.escape(p)}\n\n"
+        "Kamu bisa jawab pakai hashtag yang kamu mau. Contoh:\n"
+        "<code>#sorta (jawaban kamu)</code>"
+    )
 
 # ========================
 # /start
@@ -90,6 +144,40 @@ async def hashtags_cmd(message: types.Message):
         "Gunakan salah satu hashtag di atas saat mengirim menfess ya!",
         parse_mode="HTML"
     )
+
+@router.message(Command("template"))
+async def template_cmd(message: types.Message):
+    """
+    /template
+    Bantu user dengan format menfess siap-copas.
+    """
+    add_user(message.from_user.id, message.from_user.username or "")
+    await message.reply(
+        "🧾 <b>Pilih template hashtag</b>\n"
+        "Klik salah satu tombol di bawah, nanti bot kirim format siap-copas.",
+        reply_markup=template_keyboard(),
+        parse_mode="HTML",
+    )
+
+
+@router.callback_query(F.data.startswith("tpl:"))
+async def template_pick(callback: CallbackQuery):
+    add_user(callback.from_user.id, callback.from_user.username or "")
+    data = callback.data.split(":", 1)[1]
+    await callback.answer()
+    if data == "prompt":
+        return await callback.message.reply(_random_prompt_text(), parse_mode="HTML")
+    return await callback.message.reply(_template_text(data), parse_mode="HTML")
+
+
+@router.message(Command("prompt"))
+async def prompt_cmd(message: types.Message):
+    """
+    /prompt
+    Kasih ide/pancingan menfess secara random.
+    """
+    add_user(message.from_user.id, message.from_user.username or "")
+    await message.reply(_random_prompt_text(), parse_mode="HTML")
 
 
 @router.message(Command("last"))
