@@ -214,6 +214,21 @@ async def confirm_send(callback: CallbackQuery, bot: Bot):
     count_hashtags(text)
     log_post(user_id, text)
 
+    # Bangun teks yang dikirim ke channel
+    text_lower = text.lower()
+    if "#gonna" in text_lower:
+        username = data.get("username") or ""
+        full_name = data.get("full_name") or "(tanpa nama)"
+        mention = f"@{username}" if username else "(tidak ada username)"
+        forward_text = (
+            f"{text}\n\n"
+            f"👤 Nama  : {full_name}\n"
+            f"🆔 ID    : <code>{user_id}</code>\n"
+            f"🔗 User : {mention}"
+        )
+    else:
+        forward_text = text
+
     sent = None
 
     try:
@@ -221,7 +236,7 @@ async def confirm_send(callback: CallbackQuery, bot: Bot):
         if content_type == "text":
             sent = await bot.send_message(
                 CHANNEL_ID,
-                text,
+                forward_text,
                 parse_mode="HTML"
             )
 
@@ -229,7 +244,7 @@ async def confirm_send(callback: CallbackQuery, bot: Bot):
             sent = await bot.send_photo(
                 CHANNEL_ID,
                 data["file_id"],
-                caption=text,
+                caption=forward_text,
                 parse_mode="HTML"
             )
 

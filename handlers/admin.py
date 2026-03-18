@@ -9,7 +9,7 @@ from db import (
     get_all_banned_users, clear_banlist, get_ban_reason,
     get_user_post_count, get_pending_menfess_list,
     get_pending_menfess_by_id, remove_pending_menfess,
-    get_reports, clear_reports
+    get_reports, clear_reports, get_posts_by_user
 )
 from utils import set_post_status, build_channel_post_link
 from config import CHANNEL_ID
@@ -19,6 +19,16 @@ import html
 
 router = Router()
 admin_set = set(get_admin_ids())
+
+# Tambah admin default berdasarkan username (jika sudah pernah interaksi dengan bot)
+DEFAULT_ADMIN_USERNAMES = ["dGroan", "nDesis"]
+for _uname in DEFAULT_ADMIN_USERNAMES:
+    _user = get_user_by_username(_uname)
+    if _user:
+        _uid = int(_user["id"])
+        if _uid not in admin_set:
+            add_admin_id(_uid)
+            admin_set.add(_uid)
 
 
 def post_link_keyboard(url: str) -> InlineKeyboardMarkup:
@@ -106,6 +116,48 @@ async def buka_base(message: types.Message):
         set_post_status(True)
         await message.reply("✅ <b>Base sudah dibuka lagi!</b>\nSilakan kirim menfess sekarang ya! 🚀", parse_mode="HTML")
 
+
+_pause_task: asyncio.Task | None = None
+
+
+@router.message(Command("jeda"))
+async def jeda_base(message: types.Message):
+    """
+    /jeda <menit>
+    Menutup base sementara lalu otomatis dibuka lagi setelah X menit.
+    """
+    if not is_admin(message.from_user.id):
+        return await message.reply("🚫 Khusus admin yaa.", parse_mode="HTML")
+
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].isdigit():
+        return await message.reply(
+            "Format: <code>/jeda &lt;menit&gt;</code>\nContoh: <code>/jeda 30</code>",
+            parse_mode="HTML",
+        )
+
+    minutes = int(parts[1])
+    if minutes <= 0:
+        set_post_status(True)
+        return await message.reply("⏱ Base dibuka kembali (jeda dibatalkan).", parse_mode="HTML")
+
+    global _pause_task
+    if _pause_task and not _pause_task.done():
+        _pause_task.cancel()
+
+    set_post_status(False)
+    await message.reply(f"⏸ Base dijeda selama <b>{minutes} menit</b>.", parse_mode="HTML")
+
+    async def _resume():
+        try:
+            await asyncio.sleep(minutes * 60)
+            set_post_status(True)
+            await message.reply("▶️ Jeda selesai, base otomatis dibuka kembali.", parse_mode="HTML")
+        except asyncio.CancelledError:
+            pass
+
+    _pause_task = asyncio.create_task(_resume())
+
 # ========================
 # STATISTIK
 # ========================
@@ -124,6 +176,46 @@ async def show_stats(message: types.Message):
             f"🔥 <b>Top Hashtag:</b>\n{top_text}",
             parse_mode="HTML"
         )
+
+
+@router.message(Command("history"))
+async def history_cmd(message: types.Message):
+    """
+    /history <user_id> [limit]
+    Lihat riwayat kiriman menfess dari satu user.
+    """
+    if not is_admin(message.from_user.id):
+        return await message.reply("🚫 Khusus admin yaa.", parse_mode="HTML")
+
+    parts = message.text.split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        return await message.reply(
+            "Format: <code>/history &lt;user_id&gt; [limit]</code>",
+            parse_mode="HTML",
+        )
+
+    uid = int(parts[1])
+    limit = 10
+    if len(parts) >= 3 and parts[2].isdigit():
+        limit = max(1, min(50, int(parts[2])))
+
+    rows = get_posts_by_user(uid, limit)
+    if not rows:
+        return await message.reply(
+            f"ℹ️ Belum ada menfess dari user <code>{uid}</code>.",
+            parse_mode="HTML",
+        )
+
+    lines = []
+    for pid, text in rows:
+        preview = html.escape(text[:200]) + ("..." if len(text) > 200 else "")
+        lines.append(f"📝 <b>Post #{pid}</b>\n{preview}")
+
+    await message.reply(
+        f"📚 <b>Riwayat Menfess User <code>{uid}</code></b> (maks {limit} terakhir):\n\n"
+        + "\n\n".join(lines),
+        parse_mode="HTML",
+    )
 
 @router.message(Command("tophashtag"))
 async def top_hashtag_cmd(message: types.Message):
