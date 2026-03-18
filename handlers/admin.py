@@ -457,3 +457,20 @@ async def help_admin(message: types.Message):
         "• <code>/clearreports</code>\n"
     )
     await message.reply(help_text, parse_mode="HTML")
+
+
+@router.message(Command("help"))
+async def help_cmd(message: types.Message):
+    """
+    /help
+    - Jika admin  -> tampilkan panel bantuan admin (sama seperti /help_admin)
+    - Jika bukan -> arahkan ke /start
+    """
+    if is_admin(message.from_user.id):
+        return await help_admin(message)
+
+    return await message.reply(
+        "✨ Gunakan /start untuk melihat cara kirim menfess dan daftar hashtag.\n"
+        "Perintah ini akan menampilkan panel admin jika kamu terdaftar sebagai admin.",
+        parse_mode="HTML",
+    )
