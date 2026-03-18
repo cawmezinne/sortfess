@@ -82,6 +82,30 @@ def _random_prompt_text() -> str:
         "<code>#sorta (jawaban kamu)</code>"
     )
 
+def user_help_text() -> str:
+    return (
+        "📖 <b>Bantuan — Sort Menfess</b>\n\n"
+        "🧾 <b>Cara kirim menfess</b>\n"
+        "1) Pastikan kamu sudah subscribe 2 channel wajib.\n"
+        "2) Tulis pesan + salah satu hashtag yang tersedia.\n"
+        "3) Nanti bot kasih preview → klik <b>Kirim</b>.\n\n"
+        "📌 <b>Contoh</b>\n"
+        "<code>#sorta aku lagi kangen, tapi gengsi ngomong</code>\n\n"
+        "✨ <b>Command yang bisa kamu pakai</b>\n"
+        "• <code>/start</code> — pesan welcome + tombol subscribe.\n"
+        "• <code>/help</code> — panduan lengkap ini.\n"
+        "• <code>/status</code> — cek base sedang buka/tutup.\n"
+        "• <code>/hashtags</code> — lihat daftar hashtag.\n"
+        "• <code>/template</code> — pilih template menfess siap-copas.\n"
+        "• <code>/prompt</code> — dapat ide random buat nulis.\n"
+        "• <code>/last</code> — ambil link menfess terakhir kamu.\n"
+        "• <code>/mystats</code> — lihat total kiriman + preview terakhir.\n"
+        "• <code>/myid</code> — lihat ID/username kamu.\n"
+        "• <code>/report &lt;alasan&gt;</code> — lapor (reply ke postingan dulu).\n\n"
+        "ℹ️ <b>Catatan</b>\n"
+        "• Untuk <b>#gonna</b>, identitas pengirim akan ikut tampil di channel.\n"
+    )
+
 # ========================
 # /start
 # ========================
@@ -95,7 +119,8 @@ async def start_cmd(message: types.Message):
         "Mau kirim confess buat orang? Pengakuan? Sambat? Atau bahkan cerita hal diluar nurul?\n"
         "Gampang kok! Cukup pake hashtag sesuai jenisnya:\n\n"
         f"{hashtag_info()}\n\n"
-        "Tapi subscribe dulu ya sebelum ngirim menfess, klik tombol di bawah ini. ⬇"
+        "Tapi subscribe dulu ya sebelum ngirim menfess, klik tombol di bawah ini. ⬇\n\n"
+        "Ketik <code>/help</code> untuk panduan yang lebih lengkap."
     )
 
     await message.answer_photo(

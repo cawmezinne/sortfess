@@ -2,6 +2,7 @@ from aiogram import Router, types, Bot
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
+from handlers.start import user_help_text
 from db import (
     get_all_users, get_last_posts, get_top_hashtags,
     ban_user, unban_user, is_banned, latest_post,
@@ -626,8 +627,4 @@ async def help_cmd(message: types.Message):
     if is_admin(message.from_user.id) or _maybe_register_default_admin(message.from_user):
         return await help_admin(message)
 
-    return await message.reply(
-        "✨ Gunakan /start untuk melihat cara kirim menfess dan daftar hashtag.\n"
-        "Perintah ini akan menampilkan panel admin jika kamu terdaftar sebagai admin.",
-        parse_mode="HTML",
-    )
+    return await message.reply(user_help_text(), parse_mode="HTML")
