@@ -5,7 +5,7 @@ from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 from db import (
     get_all_users, get_last_posts, get_top_hashtags,
     ban_user, unban_user, is_banned, latest_post,
-    add_admin_id, remove_admin_id, get_admin_ids, get_user_by_id,
+    add_admin_id, remove_admin_id, get_admin_ids, get_user_by_id, get_user_by_username,
     get_all_banned_users, clear_banlist, get_ban_reason,
     get_user_post_count, get_pending_menfess_list,
     get_pending_menfess_by_id, remove_pending_menfess,
@@ -237,15 +237,45 @@ async def cekuser_cmd(message: types.Message):
 
 @router.message(Command("addadmin"))
 async def add_admin_cmd(message: types.Message):
-    if is_admin(message.from_user.id):
-        uid = extract_user_id_arg(message)
-        if uid is None:
-            return await message.reply("Format: /addadmin <user_id>")
-        if is_admin(uid):
-            return await message.reply(f"⚠️ User <code>{uid}</code> sudah menjadi admin.", parse_mode="HTML")
-        add_admin_id(uid)
-        admin_set.add(uid)
-        await message.reply(f"✅ User <code>{uid}</code> telah ditambahkan sebagai admin.", parse_mode="HTML")
+    if not is_admin(message.from_user.id):
+        return await message.reply("🚫 Khusus admin yaa.")
+
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        return await message.reply(
+            "Format: <code>/addadmin &lt;user_id|@username&gt;</code>",
+            parse_mode="HTML",
+        )
+
+    target = parts[1].strip()
+
+    # Jika angka penuh -> anggap user_id
+    uid: int | None = None
+    if target.isdigit():
+        uid = int(target)
+    else:
+        # Coba cari berdasarkan username
+        user = get_user_by_username(target)
+        if not user:
+            return await message.reply(
+                "❌ User dengan username tersebut belum pernah berinteraksi dengan bot.\n"
+                "Minta user kirim /start dulu, lalu coba lagi.",
+                parse_mode="HTML",
+            )
+        uid = int(user["id"])
+
+    if is_admin(uid):
+        return await message.reply(
+            f"⚠️ User <code>{uid}</code> sudah menjadi admin.",
+            parse_mode="HTML",
+        )
+
+    add_admin_id(uid)
+    admin_set.add(uid)
+    await message.reply(
+        f"✅ User <code>{uid}</code> telah ditambahkan sebagai admin.",
+        parse_mode="HTML",
+    )
 
 @router.message(Command("deladmin"))
 async def del_admin_cmd(message: types.Message):

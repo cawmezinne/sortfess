@@ -73,6 +73,22 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Optional[str]]]:
         row = conn.execute("SELECT id, username FROM users WHERE id = ?", (user_id,)).fetchone()
         return {"id": row[0], "username": row[1]} if row else None
 
+
+def get_user_by_username(username: str) -> Optional[Dict[str, Optional[str]]]:
+    """
+    Cari user berdasarkan username (tanpa / dengan '@').
+    Pencarian tidak case-sensitive.
+    """
+    username = username.lstrip("@")
+    if not username:
+        return None
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT id, username FROM users WHERE LOWER(username) = LOWER(?)",
+            (username,),
+        ).fetchone()
+        return {"id": row[0], "username": row[1]} if row else None
+
 def get_username_by_id(user_id: int) -> Optional[str]:
     with get_connection() as conn:
         row = conn.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
@@ -141,6 +157,18 @@ def get_last_posts(limit: int = 10) -> List[Tuple[int, str]]:
             "SELECT user_id, text FROM posts ORDER BY id DESC LIMIT ?",
             (limit,)
         ).fetchall()[::-1]
+
+
+def get_posts_by_user(user_id: int, limit: int = 10) -> List[Tuple[int, str]]:
+    """
+    Ambil riwayat postingan milik satu user (urut terbaru -> lama).
+    """
+    with get_connection() as conn:
+        rows = conn.execute(
+            "SELECT id, text FROM posts WHERE user_id = ? ORDER BY id DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+        return rows
 
 # === HASHTAGS ===
 
