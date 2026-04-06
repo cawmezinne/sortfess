@@ -14,7 +14,7 @@ router = Router()
 def sub_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="命 ｡ Base Menfess", url="https://t.me/sortfess")],
-        [InlineKeyboardButton(text="命 ｡ Heart Heart", url="https://t.me/fiIIyourheart")],
+        [InlineKeyboardButton(text="命 ｡ Novarea", url="https://t.me/novarea")],
         [InlineKeyboardButton(text="✦ Done Subscribe", callback_data="check_sub")]
         ])
 
