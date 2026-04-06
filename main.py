@@ -20,7 +20,7 @@ ADMIN_IDS = [1538087933, 7608777733]
 
 REQUIRED_CHANNELS = [
     "@sortfess",
-    "@fiIIyourheart"
+    "@novarea"
 ]
 
 AUTO_DELETE_HOURS = 24
