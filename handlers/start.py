@@ -4,9 +4,10 @@ from aiogram.filters import Command
 from aiogram import F
 import html
 import random
+import time
 from db import add_user, add_report, get_user_post_count, latest_post, get_user_last_post
 from config import REQUIRED_CHANNELS, VALID_HASHTAGS
-from utils import get_post_status
+from utils import get_post_status, get_close_reason, get_reopen_time
 
 router = Router()
 
@@ -14,7 +15,11 @@ router = Router()
 def sub_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="命 ｡ Base Menfess", url="https://t.me/sortfess")],
+<<<<<<< HEAD
         [InlineKeyboardButton(text="命 ｡ Novarea", url="https://t.me/novarea")],
+=======
+        [InlineKeyboardButton(text="命 ｡ Sorthern", url="https://t.me/sorthern")],
+>>>>>>> ca70842 (update fitur forward bot)
         [InlineKeyboardButton(text="✦ Done Subscribe", callback_data="check_sub")]
         ])
 
@@ -86,22 +91,25 @@ def user_help_text() -> str:
     return (
         "📖 <b>Bantuan — Sort Menfess</b>\n\n"
         "🧾 <b>Cara kirim menfess</b>\n"
-        "1) Pastikan kamu sudah subscribe 2 channel wajib.\n"
+        "1) Pastikan kamu sudah subscribe channel wajib.\n"
         "2) Tulis pesan + salah satu hashtag yang tersedia.\n"
         "3) Nanti bot kasih preview → klik <b>Kirim</b>.\n\n"
         "📌 <b>Contoh</b>\n"
         "<code>#sorta aku lagi kangen, tapi gengsi ngomong</code>\n\n"
+        "📎 <b>Media yang didukung</b>\n"
+        "• Teks, foto, dokumen, video, stiker\n\n"
         "✨ <b>Command yang bisa kamu pakai</b>\n"
         "• <code>/start</code> — pesan welcome + tombol subscribe.\n"
         "• <code>/help</code> — panduan lengkap ini.\n"
         "• <code>/status</code> — cek base sedang buka/tutup.\n"
+        "• <code>/ping</code> — cek bot aktif + uptime.\n"
         "• <code>/hashtags</code> — lihat daftar hashtag.\n"
         "• <code>/template</code> — pilih template menfess siap-copas.\n"
         "• <code>/prompt</code> — dapat ide random buat nulis.\n"
         "• <code>/last</code> — ambil link menfess terakhir kamu.\n"
         "• <code>/mystats</code> — lihat total kiriman + preview terakhir.\n"
         "• <code>/myid</code> — lihat ID/username kamu.\n"
-        "• <code>/report &lt;alasan&gt;</code> — lapor (reply ke postingan dulu).\n\n"
+        "• <code>/report <alasan></code> — lapor (reply ke postingan dulu).\n\n"
         "ℹ️ <b>Catatan</b>\n"
         "• Untuk <b>#gonna</b>, identitas pengirim akan ikut tampil di channel.\n"
     )
@@ -147,7 +155,7 @@ async def myid_cmd(message: types.Message):
     )
 
 # ========================
-# /status
+# /status (with close reason + reopen time)
 # ========================
 
 @router.message(Command("status"))
@@ -156,7 +164,44 @@ async def status_cmd(message: types.Message):
     if is_open:
         await message.reply("✅ Base sedang <b>BUKA</b>! Silakan kirim menfess~", parse_mode="HTML")
     else:
-        await message.reply("🔒 Base sedang <b>TUTUP</b>. Tunggu dibuka lagi ya~", parse_mode="HTML")
+        reason = get_close_reason()
+        reopen = get_reopen_time()
+
+        text = "🔒 Base sedang <b>TUTUP</b>."
+        if reason:
+            text += f"\n📝 Keterangan: <i>{html.escape(reason)}</i>"
+        if reopen:
+            text += f"\n⏰ Dibuka lagi: <b>{reopen.strftime('%H:%M WIB')}</b>"
+        text += "\n\nTunggu dibuka lagi ya~"
+        await message.reply(text, parse_mode="HTML")
+
+# ========================
+# /ping
+# ========================
+
+@router.message(Command("ping"))
+async def ping_cmd(message: types.Message):
+    from main import START_TIME
+    uptime_secs = int(time.time() - START_TIME)
+    hours = uptime_secs // 3600
+    minutes = (uptime_secs % 3600) // 60
+    secs = uptime_secs % 60
+
+    parts = []
+    if hours > 0:
+        parts.append(f"{hours} jam")
+    if minutes > 0:
+        parts.append(f"{minutes} menit")
+    parts.append(f"{secs} detik")
+    uptime_str = " ".join(parts)
+
+    await message.reply(
+        "🏓 <b>Pong!</b>\n\n"
+        f"✅ Bot aktif dan berjalan.\n"
+        f"⏱ Uptime: <b>{uptime_str}</b>\n\n"
+        "Ketik <code>/help</code> untuk panduan lengkap.",
+        parse_mode="HTML"
+    )
 
 # ========================
 # /hashtags

@@ -9,7 +9,7 @@ ADMIN_IDS = set(int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x.strip
 REQUIRED_CHANNELS = [x.strip() for x in os.getenv('REQUIRED_CHANNELS', '').split(',') if x.strip()]
 
 # Auto-delete menfess setelah X jam (0 = nonaktif)
-AUTO_DELETE_HOURS = int(os.getenv('AUTO_DELETE_HOURS', '24'))
+AUTO_DELETE_HOURS = int(os.getenv('AUTO_DELETE_HOURS', '0'))
 
 # Cooldown per user dalam detik
 # 0 = nonaktif (tanpa limit)

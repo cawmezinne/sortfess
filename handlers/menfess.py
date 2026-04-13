@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQu
 
 from filters import contains_bad_word
 from config import VALID_HASHTAGS, CHANNEL_ID, AUTO_DELETE_HOURS
-from utils import check_subscription, get_post_status, build_channel_post_link
+from utils import check_subscription, get_post_status, get_close_reason, build_channel_post_link
 from handlers.start import sub_keyboard
 
 from db import (
@@ -37,7 +37,12 @@ async def validate_user(message: types.Message, bot: Bot) -> bool:
         return False
 
     if not get_post_status():
-        await message.reply("🔒 Base sedang rehat. Coba lagi nanti ya.")
+        reason = get_close_reason()
+        text = "🔒 Base sedang rehat."
+        if reason:
+            text += f"\n📝 Keterangan: <i>{html.escape(reason)}</i>"
+        text += "\n\nCoba lagi nanti ya."
+        await message.reply(text, parse_mode="HTML")
         return False
 
     if not await check_subscription(user_id, bot):
@@ -54,7 +59,10 @@ async def validate_user(message: types.Message, bot: Bot) -> bool:
 # VALIDASI TEKS
 # ========================
 
-def validate_text(text: str):
+def validate_text(text: str, allow_empty: bool = False):
+    if allow_empty and not text:
+        return None
+
     if len(text) < 10:
         return "⚠️ Pesan terlalu pendek."
 
@@ -188,6 +196,96 @@ async def handle_photo(message: types.Message, bot: Bot):
 
 
 # ========================
+# DOCUMENT MENFESS
+# ========================
+
+@router.message(F.document)
+async def handle_document(message: types.Message, bot: Bot):
+
+    if not await validate_user(message, bot):
+        return
+
+    caption = message.caption or ""
+
+    error = validate_text(caption)
+    if error:
+        return await message.reply(error)
+
+    user_id = message.from_user.id
+
+    _pending_confirm[user_id] = {
+        "type": "document",
+        "text": caption,
+        "file_id": message.document.file_id,
+        "username": message.from_user.username or "",
+        "full_name": message.from_user.full_name
+    }
+
+    await message.reply(
+        "📄 Dokumen siap dikirim. Kirim sekarang?",
+        reply_markup=confirm_keyboard()
+    )
+
+
+# ========================
+# VIDEO MENFESS
+# ========================
+
+@router.message(F.video)
+async def handle_video(message: types.Message, bot: Bot):
+
+    if not await validate_user(message, bot):
+        return
+
+    caption = message.caption or ""
+
+    error = validate_text(caption)
+    if error:
+        return await message.reply(error)
+
+    user_id = message.from_user.id
+
+    _pending_confirm[user_id] = {
+        "type": "video",
+        "text": caption,
+        "file_id": message.video.file_id,
+        "username": message.from_user.username or "",
+        "full_name": message.from_user.full_name
+    }
+
+    await message.reply(
+        "🎬 Video siap dikirim. Kirim sekarang?",
+        reply_markup=confirm_keyboard()
+    )
+
+
+# ========================
+# STICKER MENFESS
+# ========================
+
+@router.message(F.sticker)
+async def handle_sticker(message: types.Message, bot: Bot):
+
+    if not await validate_user(message, bot):
+        return
+
+    user_id = message.from_user.id
+
+    _pending_confirm[user_id] = {
+        "type": "sticker",
+        "text": "",
+        "file_id": message.sticker.file_id,
+        "username": message.from_user.username or "",
+        "full_name": message.from_user.full_name
+    }
+
+    await message.reply(
+        "🎨 Stiker siap dikirim. Kirim sekarang?",
+        reply_markup=confirm_keyboard()
+    )
+
+
+# ========================
 # CONFIRM SEND
 # ========================
 
@@ -212,8 +310,12 @@ async def confirm_send(callback: CallbackQuery, bot: Bot):
     text = data["text"]
     content_type = data["type"]
 
-    count_hashtags(text)
-    log_post(user_id, text)
+    # Stiker tidak butuh hashtag, skip log hashtag & post log teks jika kosong
+    if content_type != "sticker":
+        count_hashtags(text)
+        log_post(user_id, text)
+    else:
+        log_post(user_id, "[sticker]")
 
     # Bangun teks yang dikirim ke channel
     text_lower = text.lower()
@@ -229,6 +331,18 @@ async def confirm_send(callback: CallbackQuery, bot: Bot):
         )
     else:
         forward_text = text
+
+    # Jika #tellem → masuk pending approval
+    if "#tellem" in text_lower and content_type != "sticker":
+        file_id = data.get("file_id")
+        pending_id = add_pending_menfess(user_id, content_type, text, file_id)
+        await bot.send_message(
+            user_id,
+            f"⏳ Menfess <b>#tellem</b> kamu sudah masuk antrian review (ID: #{pending_id}).\n"
+            "Admin akan segera mengecek. Terima kasih!",
+            parse_mode="HTML"
+        )
+        return
 
     sent = None
 
@@ -247,6 +361,28 @@ async def confirm_send(callback: CallbackQuery, bot: Bot):
                 data["file_id"],
                 caption=forward_text,
                 parse_mode="HTML"
+            )
+
+        elif content_type == "document":
+            sent = await bot.send_document(
+                CHANNEL_ID,
+                data["file_id"],
+                caption=forward_text,
+                parse_mode="HTML"
+            )
+
+        elif content_type == "video":
+            sent = await bot.send_video(
+                CHANNEL_ID,
+                data["file_id"],
+                caption=forward_text,
+                parse_mode="HTML"
+            )
+
+        elif content_type == "sticker":
+            sent = await bot.send_sticker(
+                CHANNEL_ID,
+                data["file_id"]
             )
 
     except Exception as e:

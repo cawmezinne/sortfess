@@ -12,11 +12,13 @@ from db import (
     get_pending_menfess_by_id, remove_pending_menfess,
     get_reports, clear_reports, get_posts_by_user, upsert_user_last_post
 )
-from utils import set_post_status, build_channel_post_link
+from utils import set_post_status, build_channel_post_link, get_close_reason, get_reopen_time
 from config import CHANNEL_ID
+from middleware import RateLimitMiddleware
 import asyncio
 import logging
 import html
+from datetime import datetime, timedelta, timezone
 
 router = Router()
 admin_set = set(get_admin_ids())
@@ -127,9 +129,20 @@ async def reply_user(message: types.Message):
 
 @router.message(Command("tutup"))
 async def tutup_base(message: types.Message):
-    if is_admin(message.from_user.id):
-        set_post_status(False)
-        await message.reply("🔒 <b>Base ditutup sementara.</b>\nLagi istirahat dulu yaa~ 😴", parse_mode="HTML")
+    if not is_admin(message.from_user.id):
+        return
+
+    # Ambil alasan dari teks setelah /tutup
+    parts = message.text.split(maxsplit=1)
+    reason = parts[1].strip() if len(parts) >= 2 else None
+
+    set_post_status(False, reason=reason)
+
+    text = "🔒 <b>Base ditutup sementara.</b>"
+    if reason:
+        text += f"\n📝 Keterangan: <i>{html.escape(reason)}</i>"
+    text += "\n\nLagi istirahat dulu yaa~ 😴"
+    await message.reply(text, parse_mode="HTML")
 
 @router.message(Command("buka"))
 async def buka_base(message: types.Message):
@@ -144,20 +157,24 @@ _pause_task: asyncio.Task | None = None
 @router.message(Command("jeda"))
 async def jeda_base(message: types.Message):
     """
-    /jeda <menit>
+    /jeda <menit> [alasan]
     Menutup base sementara lalu otomatis dibuka lagi setelah X menit.
+    Contoh: /jeda 30 paid promote
     """
     if not is_admin(message.from_user.id):
         return await message.reply("🚫 Khusus admin yaa.", parse_mode="HTML")
 
-    parts = message.text.split(maxsplit=1)
+    parts = message.text.split(maxsplit=2)
     if len(parts) < 2 or not parts[1].isdigit():
         return await message.reply(
-            "Format: <code>/jeda &lt;menit&gt;</code>\nContoh: <code>/jeda 30</code>",
+            "Format: <code>/jeda &lt;menit&gt; [alasan]</code>\n"
+            "Contoh: <code>/jeda 30</code> atau <code>/jeda 60 paid promote</code>",
             parse_mode="HTML",
         )
 
     minutes = int(parts[1])
+    reason = parts[2].strip() if len(parts) >= 3 else None
+
     if minutes <= 0:
         set_post_status(True)
         return await message.reply("⏱ Base dibuka kembali (jeda dibatalkan).", parse_mode="HTML")
@@ -166,8 +183,17 @@ async def jeda_base(message: types.Message):
     if _pause_task and not _pause_task.done():
         _pause_task.cancel()
 
-    set_post_status(False)
-    await message.reply(f"⏸ Base dijeda selama <b>{minutes} menit</b>.", parse_mode="HTML")
+    # Hitung waktu buka kembali (WIB = UTC+7)
+    wib = timezone(timedelta(hours=7))
+    reopen_at = datetime.now(wib) + timedelta(minutes=minutes)
+
+    set_post_status(False, reason=reason, reopen_at=reopen_at)
+
+    text = f"⏸ Base dijeda selama <b>{minutes} menit</b>."
+    if reason:
+        text += f"\n📝 Keterangan: <i>{html.escape(reason)}</i>"
+    text += f"\n⏰ Dibuka lagi: <b>{reopen_at.strftime('%H:%M WIB')}</b>"
+    await message.reply(text, parse_mode="HTML")
 
     async def _resume():
         try:
@@ -319,17 +345,27 @@ async def cekuser_cmd(message: types.Message):
     if not is_admin(message.from_user.id):
         return
 
-    uid = extract_user_id_arg(message)
-    if uid is None:
-        return await message.reply("❗ Format: <code>/cekuser 123456789</code>", parse_mode="HTML")
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        return await message.reply("❗ Format: <code>/cekuser &lt;user_id|@username&gt;</code>", parse_mode="HTML")
 
-    user = get_user_by_id(uid)
+    target = parts[1].strip()
+
+    # Support user_id or @username lookup
+    user = None
+    if target.isdigit():
+        uid = int(target)
+        user = get_user_by_id(uid)
+    else:
+        user = get_user_by_username(target)
+
+    if not user:
+        return await message.reply(f"ℹ️ User <code>{html.escape(target)}</code> tidak ditemukan di database.", parse_mode="HTML")
+
+    uid = int(user["id"])
     banned = is_banned(uid)
     post_count = get_user_post_count(uid)
     reason = get_ban_reason(uid) if banned else None
-
-    if not user:
-        return await message.reply(f"ℹ️ User <code>{uid}</code> tidak ditemukan di database.", parse_mode="HTML")
 
     username = user.get("username")
     status = "🚫 Diblokir" if banned else "✅ Aktif"
@@ -481,6 +517,11 @@ async def approve_cmd(message: types.Message, bot: Bot):
                 caption=menfess["text"],
                 parse_mode="HTML"
             )
+        elif menfess["content_type"] == "sticker":
+            sent = await bot.send_sticker(
+                chat_id=CHANNEL_ID,
+                sticker=menfess["file_id"]
+            )
         else:
             sent = await bot.send_message(
                 chat_id=CHANNEL_ID,
@@ -569,6 +610,107 @@ async def clearreports_cmd(message: types.Message):
     await message.reply("🗑️ Semua laporan sudah dihapus.")
 
 # ========================
+# SETCOOLDOWN
+# ========================
+
+@router.message(Command("setcooldown"))
+async def setcooldown_cmd(message: types.Message):
+    """
+    /setcooldown <detik>
+    Ubah cooldown antar-menfess secara dinamis.
+    0 = nonaktif.
+    """
+    if not is_admin(message.from_user.id):
+        return await message.reply("🚫 Khusus admin yaa.", parse_mode="HTML")
+
+    parts = message.text.split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        return await message.reply(
+            "Format: <code>/setcooldown &lt;detik&gt;</code>\n"
+            "Contoh: <code>/setcooldown 120</code> (2 menit)\n"
+            "<code>/setcooldown 0</code> (nonaktif)",
+            parse_mode="HTML",
+        )
+
+    seconds = int(parts[1])
+
+    # Update config module
+    import config
+    config.COOLDOWN_SECONDS = seconds
+
+    if seconds == 0:
+        await message.reply("✅ Cooldown <b>dinonaktifkan</b>.", parse_mode="HTML")
+    else:
+        mins = seconds // 60
+        secs = seconds % 60
+        time_str = f"{mins} menit {secs} detik" if mins > 0 else f"{secs} detik"
+        await message.reply(
+            f"✅ Cooldown diubah menjadi <b>{time_str}</b>.",
+            parse_mode="HTML",
+        )
+
+# ========================
+# NOTIF (kirim notifikasi ke channel)
+# ========================
+
+@router.message(Command("notif"))
+async def notif_cmd(message: types.Message, bot: Bot):
+    """
+    /notif <pesan>
+    Kirim notifikasi/pengumuman ke channel base.
+    """
+    if not is_admin(message.from_user.id):
+        return await message.reply("🚫 Khusus admin yaa.", parse_mode="HTML")
+
+    text = message.text[len("/notif"):].strip()
+    if not text:
+        return await message.reply(
+            "Format: <code>/notif &lt;pesan&gt;</code>\n"
+            "Contoh: <code>/notif Base tutup jam 10 malam ya!</code>",
+            parse_mode="HTML",
+        )
+
+    try:
+        await bot.send_message(
+            CHANNEL_ID,
+            f"📢 <b>Pengumuman Admin</b>\n\n{text}",
+            parse_mode="HTML",
+        )
+        await message.reply("✅ Notifikasi berhasil dikirim ke channel.")
+    except Exception as e:
+        await message.reply(f"❌ Gagal kirim: <code>{html.escape(str(e))}</code>", parse_mode="HTML")
+
+# ========================
+# DELETE MENFESS (hapus pesan di channel)
+# ========================
+
+@router.message(Command("deletemenfess"))
+async def deletemenfess_cmd(message: types.Message, bot: Bot):
+    """
+    /deletemenfess <message_id>
+    Hapus menfess tertentu dari channel.
+    """
+    if not is_admin(message.from_user.id):
+        return await message.reply("🚫 Khusus admin yaa.", parse_mode="HTML")
+
+    parts = message.text.split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        return await message.reply(
+            "Format: <code>/deletemenfess &lt;message_id&gt;</code>\n"
+            "Contoh: <code>/deletemenfess 42</code>",
+            parse_mode="HTML",
+        )
+
+    msg_id = int(parts[1])
+    try:
+        await bot.delete_message(CHANNEL_ID, msg_id)
+        await message.reply(f"✅ Pesan <code>{msg_id}</code> berhasil dihapus dari channel.", parse_mode="HTML")
+    except TelegramBadRequest:
+        await message.reply("❌ Pesan tidak ditemukan atau sudah dihapus.")
+    except Exception as e:
+        await message.reply(f"❌ Gagal hapus: <code>{html.escape(str(e))}</code>", parse_mode="HTML")
+
+# ========================
 # HELP ADMIN
 # ========================
 
@@ -580,34 +722,36 @@ async def help_admin(message: types.Message):
         "📖 <b>Panel Bantuan Admin — SortFess</b>\n\n"
         "🔊 <b>Broadcast & Balas</b>\n"
         "• <code>/broadcast &lt;pesan&gt;</code> — kirim pesan ke semua user.\n"
-        "  Contoh: <code>/broadcast Halo semua, base open 24/7!</code>\n"
-        "• <code>/balas &lt;user_id&gt; &lt;pesan&gt;</code> — balas DM user tertentu.\n"
-        "  Contoh: <code>/balas 123456789 Terima kasih laporannya yaa</code>\n\n"
+        "• <code>/balas &lt;user_id&gt; &lt;pesan&gt;</code> — balas DM user tertentu.\n\n"
         "🚪 <b>Kontrol Base</b>\n"
-        "• <code>/tutup</code> / <code>/buka</code> — tutup/buka base permanen.\n"
-        "• <code>/jeda &lt;menit&gt;</code> — jeda base sementara lalu buka otomatis.\n"
-        "  Contoh: <code>/jeda 30</code> (tutup 30 menit), <code>/jeda 0</code> (batalkan jeda).\n\n"
+        "• <code>/tutup [keterangan]</code> — tutup base (bisa tambah alasan).\n"
+        "  Contoh: <code>/tutup paid promote</code>\n"
+        "• <code>/buka</code> — buka base.\n"
+        "• <code>/jeda &lt;menit&gt; [keterangan]</code> — jeda base sementara.\n"
+        "  Contoh: <code>/jeda 30 istirahat</code>\n"
+        "• <code>/setcooldown &lt;detik&gt;</code> — ubah cooldown menfess.\n"
+        "  Contoh: <code>/setcooldown 120</code> (2 menit)\n\n"
         "📊 <b>Statistik</b>\n"
-        "• <code>/stat</code> — lihat total user & top hashtag.\n"
-        "• <code>/tophashtag</code> — lihat 10 hashtag teratas.\n"
-        "• <code>/last10</code> — lihat 10 pengirim terakhir.\n"
-        "• <code>/history &lt;user_id&gt; [limit]</code> — riwayat menfess user.\n"
-        "  Contoh: <code>/history 123456789 20</code>\n\n"
+        "• <code>/stat</code> — total user & top hashtag.\n"
+        "• <code>/tophashtag</code> — 10 hashtag teratas.\n"
+        "• <code>/last10</code> — 10 pengirim terakhir.\n"
+        "• <code>/history &lt;user_id&gt; [limit]</code> — riwayat menfess user.\n\n"
         "🔒 <b>Manajemen Pengguna</b>\n"
         "• <code>/ban &lt;user_id&gt; [alasan]</code> — blokir user.\n"
-        "  Contoh: <code>/ban 123456789 spam</code>\n"
         "• <code>/unban &lt;user_id&gt;</code> — buka blokir.\n"
         "• <code>/listban</code> / <code>/clearban</code> — lihat / hapus daftar ban.\n"
-        "• <code>/cekuser &lt;user_id&gt;</code> — cek status & statistik user.\n\n"
+        "• <code>/cekuser &lt;user_id|@username&gt;</code> — cek info user.\n\n"
         "🛡 <b>Manajemen Admin</b>\n"
         "• <code>/addadmin &lt;user_id|@username&gt;</code> — tambah admin.\n"
-        "  Contoh: <code>/addadmin 123456789</code> atau <code>/addadmin @dGroan</code>\n"
         "• <code>/deladmin &lt;user_id&gt;</code> — hapus admin.\n"
-        "• <code>/listadmin</code> — lihat daftar admin aktif.\n\n"
+        "• <code>/listadmin</code> — daftar admin aktif.\n\n"
         "📋 <b>Approval Mode (#tellem)</b>\n"
-        "• <code>/pending</code> — lihat antrian menfess pending.\n"
-        "• <code>/approve &lt;id&gt;</code> — kirim menfess pending ke channel.\n"
+        "• <code>/pending</code> — antrian menfess pending.\n"
+        "• <code>/approve &lt;id&gt;</code> — kirim menfess pending.\n"
         "• <code>/reject &lt;id&gt; [alasan]</code> — tolak menfess pending.\n\n"
+        "📢 <b>Channel & Menfess</b>\n"
+        "• <code>/notif &lt;pesan&gt;</code> — kirim pengumuman ke channel.\n"
+        "• <code>/deletemenfess &lt;message_id&gt;</code> — hapus menfess dari channel.\n\n"
         "📢 <b>Reports</b>\n"
         "• <code>/reports</code> — lihat laporan terbaru.\n"
         "• <code>/clearreports</code> — hapus semua laporan.\n\n"

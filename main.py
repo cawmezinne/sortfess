@@ -2,13 +2,13 @@ import os
 import asyncio
 import signal
 import logging
+import time
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import ErrorEvent
 from config import CHANNEL_ID
-print("CHANNEL_ID loaded:", CHANNEL_ID)
 
 # ========================
 # CONFIG (langsung di kode)
@@ -20,12 +20,14 @@ ADMIN_IDS = [1538087933, 7608777733]
 
 REQUIRED_CHANNELS = [
     "@sortfess",
-    "@novarea"
+    "@sorthern"
 ]
 
-AUTO_DELETE_HOURS = 24
-COOLDOWN_SECONDS = 120
+AUTO_DELETE_HOURS = 0
+COOLDOWN_SECONDS = 0
 
+# Waktu mulai bot (untuk /ping uptime)
+START_TIME = time.time()
 
 # ========================
 # IMPORT ROUTERS
@@ -114,9 +116,6 @@ async def global_error_handler(event: ErrorEvent):
 
 async def main():
     logger.info("🤖 Bot Sort Menfess sedang berjalan...")
-    
-    chat = await bot.get_chat(-1002538940104)
-    print(chat)
 
     loop = asyncio.get_event_loop()
 

@@ -1,5 +1,6 @@
 import logging
 from typing import Optional
+from datetime import datetime
 from aiogram import Bot
 from aiogram.enums import ChatMemberStatus
 from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
@@ -10,26 +11,52 @@ from config import REQUIRED_CHANNELS
 # STATUS BASE (OPEN / CLOSE)
 # ========================
 
-_POST_STATUS = {"is_open": True}
+_POST_STATUS = {
+    "is_open": True,
+    "reason": None,       # alasan tutup (e.g. "paid promote")
+    "reopen_at": None,    # waktu buka otomatis (datetime)
+}
 
 
-def set_post_status(status: bool) -> None:
+def set_post_status(
+    status: bool,
+    reason: Optional[str] = None,
+    reopen_at: Optional[datetime] = None,
+) -> None:
     """
-    Mengubah status base (buka / tutup menfess)
+    Mengubah status base (buka / tutup menfess).
+    Bisa menyimpan alasan tutup dan jadwal buka otomatis.
     """
     _POST_STATUS["is_open"] = status
+    _POST_STATUS["reason"] = reason if not status else None
+    _POST_STATUS["reopen_at"] = reopen_at if not status else None
 
     if status:
         logging.info("[Post Status] Base dibuka")
     else:
-        logging.info("[Post Status] Base ditutup")
+        r = f" | Alasan: {reason}" if reason else ""
+        logging.info(f"[Post Status] Base ditutup{r}")
 
 
 def get_post_status() -> bool:
     """
-    Mengambil status base saat ini
+    Mengambil status base saat ini.
     """
     return _POST_STATUS["is_open"]
+
+
+def get_close_reason() -> Optional[str]:
+    """
+    Mengambil alasan base ditutup (None jika tidak ada / sedang buka).
+    """
+    return _POST_STATUS.get("reason")
+
+
+def get_reopen_time() -> Optional[datetime]:
+    """
+    Mengambil waktu jadwal buka otomatis (None jika tidak ada).
+    """
+    return _POST_STATUS.get("reopen_at")
 
 
 # ========================
